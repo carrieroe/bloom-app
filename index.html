@@ -1,0 +1,2120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bloom</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,700;1,400;1,500&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Josefin+Sans:wght@300;400;600&display=swap" rel="stylesheet">
+<style>
+/* ── TOKENS ── */
+:root {
+  --green:  #34c759;
+  --blue:   #007aff;
+  --amber:  #ff9f0a;
+  --pink:   #ff375f;
+  --purple: #bf5af2;
+  --text:        #f5f5f7;
+  --text-2:      rgba(245,245,247,0.6);
+  --text-3:      rgba(245,245,247,0.35);
+  --glass:       rgba(255,255,255,0.07);
+  --glass-hover: rgba(255,255,255,0.11);
+  --glass-border:rgba(255,255,255,0.14);
+  --glass-deep:  rgba(255,255,255,0.04);
+  --inset:       rgba(0,0,0,0.25);
+  --blur: 28px;
+  --r: 18px;
+  --r-sm: 12px;
+  --r-xs: 8px;
+  --grad-accent: linear-gradient(135deg, var(--green), var(--blue));
+  --grad-warm:   linear-gradient(135deg, var(--amber), var(--pink));
+  --grad-cool:   linear-gradient(135deg, var(--blue),  var(--purple));
+  --shadow: 0 8px 32px rgba(0,0,0,0.4), 0 1px 0 rgba(255,255,255,0.06) inset;
+  --shadow-sm: 0 4px 16px rgba(0,0,0,0.3);
+}
+[data-theme="light"] {
+  --text:        #1c1c1e;
+  --text-2:      rgba(28,28,30,0.55);
+  --text-3:      rgba(28,28,30,0.32);
+  --glass:       rgba(255,255,255,0.62);
+  --glass-hover: rgba(255,255,255,0.78);
+  --glass-border:rgba(255,255,255,0.9);
+  --glass-deep:  rgba(255,255,255,0.4);
+  --inset:       rgba(0,0,0,0.06);
+  --shadow: 0 8px 32px rgba(0,0,0,0.12), 0 1px 0 rgba(255,255,255,0.9) inset;
+  --shadow-sm: 0 4px 16px rgba(0,0,0,0.08);
+}
+
+/* ── RESET ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Libre Baskerville', serif;
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  position: relative;
+  font-size: 15px;
+  line-height: 1.65;
+}
+
+/* ── BACKGROUND CANVAS ── */
+.bg-canvas {
+  position: fixed; inset: 0; z-index: 0;
+  overflow: hidden;
+  background: #0a0a0e;
+}
+[data-theme="light"] .bg-canvas { background: #e8eaf0; }
+
+/* Orbs */
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.55;
+  animation: drift 18s ease-in-out infinite;
+}
+[data-theme="light"] .orb { opacity: 0.35; }
+.orb-1 { width: 520px; height: 520px; background: radial-gradient(circle, #1a4a2e, #0d2a1a); top: -160px; left: -100px; animation-delay: 0s; }
+.orb-2 { width: 420px; height: 420px; background: radial-gradient(circle, #0d2d4a, #061820); top: 20%; right: -120px; animation-delay: -6s; }
+.orb-3 { width: 360px; height: 360px; background: radial-gradient(circle, #2a1a0e, #180d06); bottom: 5%; left: 20%; animation-delay: -12s; }
+.orb-4 { width: 280px; height: 280px; background: radial-gradient(circle, #1a0d2a, #0e0618); bottom: 20%; right: 5%; animation-delay: -3s; }
+[data-theme="light"] .orb-1 { background: radial-gradient(circle, #a8d8b8, #c8ecd8); }
+[data-theme="light"] .orb-2 { background: radial-gradient(circle, #a8c8e8, #c8dcf4); }
+[data-theme="light"] .orb-3 { background: radial-gradient(circle, #f0d8a8, #f8eacc); }
+[data-theme="light"] .orb-4 { background: radial-gradient(circle, #d8a8e0, #ead4f4); }
+
+@keyframes drift {
+  0%,100% { transform: translate(0,0) scale(1); }
+  33%      { transform: translate(30px,-20px) scale(1.04); }
+  66%      { transform: translate(-20px,15px) scale(0.97); }
+}
+
+/* Subtle grain overlay */
+.bg-canvas::after {
+  content: '';
+  position: absolute; inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+/* ── NAV ── */
+nav {
+  position: sticky; top: 0; z-index: 200;
+  height: 56px;
+  display: flex; align-items: center;
+  padding: 0 24px; gap: 20px;
+  background: rgba(10,10,14,0.55);
+  backdrop-filter: saturate(180%) blur(24px);
+  -webkit-backdrop-filter: saturate(180%) blur(24px);
+  border-bottom: 1px solid var(--glass-border);
+}
+[data-theme="light"] nav { background: rgba(232,234,240,0.65); }
+nav::after {
+  content: ''; position: absolute; bottom: -1px; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent 0%, var(--green) 35%, var(--blue) 65%, transparent 100%);
+  opacity: 0.4; pointer-events: none;
+}
+.nav-logo {
+  font-family: 'Playfair Display', serif;
+  font-size: 22px; font-weight: 400; font-style: italic;
+  background: var(--grad-accent);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text; flex-shrink: 0; letter-spacing: 0.04em;
+}
+.nav-tabs { display: flex; gap: 2px; flex: 1; }
+.nav-tab {
+  padding: 6px 14px; border: none; background: none;
+  font-family: 'Josefin Sans', sans-serif; font-size: 11px; font-weight: 400;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--text-3); border-radius: var(--r-xs);
+  cursor: pointer; transition: all 0.18s; position: relative;
+}
+.nav-tab:hover { color: var(--text-2); background: var(--glass); }
+.nav-tab.active {
+  color: var(--text);
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+}
+.nav-date {
+  font-family: 'Josefin Sans', sans-serif;
+  font-size: 10px; color: var(--text-3); flex-shrink: 0; letter-spacing: 0.2em; text-transform: uppercase;
+}
+.theme-btn {
+  width: 30px; height: 30px; flex-shrink: 0;
+  background: var(--glass); border: 1px solid var(--glass-border);
+  border-radius: var(--r-xs); color: var(--text-2);
+  cursor: pointer; font-size: 13px;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s; backdrop-filter: blur(8px);
+}
+.theme-btn:hover { background: var(--glass-hover); color: var(--text); }
+
+/* ── LAYOUT ── */
+main {
+  position: relative; z-index: 10;
+  max-width: 660px; margin: 0 auto;
+  padding: 44px 20px 100px;
+}
+.section { display: none; }
+.section.active { display: block; animation: rise 0.32s cubic-bezier(0.4,0,0.2,1); }
+@keyframes rise { from { opacity:0; transform:translateY(14px); } to { opacity:1; transform:translateY(0); } }
+
+/* ── SECTION HEADER ── */
+.section-header { margin-bottom: 32px; }
+.eyebrow {
+  font-family: 'Josefin Sans', sans-serif;
+  font-size: 10px; letter-spacing: 0.28em; text-transform: uppercase;
+  color: var(--text-3); margin-bottom: 10px;
+}
+.section-header h1 {
+  font-family: 'Playfair Display', serif;
+  font-size: 38px; font-weight: 400; font-style: italic; line-height: 1.12;
+  letter-spacing: -0.01em;
+  background: linear-gradient(135deg, var(--text) 0%, var(--text-2) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text; display: inline-block;
+}
+.section-header p {
+  margin-top: 10px; font-size: 13px; color: var(--text-3);
+  line-height: 1.75; font-style: italic;
+  font-family: 'Libre Baskerville', serif;
+}
+
+/* ── GLASS CARD ── */
+.card {
+  background: var(--glass);
+  backdrop-filter: saturate(160%) blur(var(--blur));
+  -webkit-backdrop-filter: saturate(160%) blur(var(--blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r);
+  padding: 24px;
+  margin-bottom: 12px;
+  box-shadow: var(--shadow);
+  position: relative; overflow: hidden;
+}
+.card::before {
+  content: ''; position: absolute;
+  top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.18) 50%, transparent 100%);
+  pointer-events: none;
+}
+.card-label {
+  font-family: 'Josefin Sans', sans-serif;
+  font-size: 9px; letter-spacing: 0.28em; text-transform: uppercase;
+  color: var(--text-3); margin-bottom: 18px;
+}
+
+/* ── QUOTE CARD ── */
+.quote-card {
+  background: var(--glass);
+  backdrop-filter: saturate(180%) blur(var(--blur));
+  -webkit-backdrop-filter: saturate(180%) blur(var(--blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r);
+  padding: 28px 28px 22px;
+  margin-bottom: 12px;
+  box-shadow: var(--shadow);
+  position: relative; overflow: hidden;
+}
+.quote-card::before {
+  content: ''; position: absolute;
+  top: 0; left: 0; right: 0; height: 2px;
+  background: var(--grad-accent); opacity: 0.7;
+}
+.quote-card::after {
+  content: ''; position: absolute;
+  inset: 0; border-radius: var(--r);
+  background: linear-gradient(135deg, rgba(52,199,89,0.06) 0%, rgba(0,122,255,0.05) 50%, rgba(255,159,10,0.04) 100%);
+  pointer-events: none;
+}
+.quote-eyebrow {
+  font-family: 'Josefin Sans', sans-serif;
+  font-size: 9px; letter-spacing: 0.28em; text-transform: uppercase;
+  background: var(--grad-accent);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text; margin-bottom: 16px; display: inline-block;
+}
+.quote-text {
+  font-family: 'Playfair Display', serif;
+  font-size: 22px; font-weight: 400; font-style: italic;
+  color: var(--text); line-height: 1.65; min-height: 50px;
+  transition: opacity 0.5s; letter-spacing: 0.01em;
+  position: relative; z-index: 1;
+}
+.quote-author {
+  margin-top: 14px; position: relative; z-index: 1;
+  font-family: 'Josefin Sans', sans-serif;
+  font-size: 10px; color: var(--text-3); letter-spacing: 0.22em; text-transform: uppercase;
+}
+.quote-loading {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 13px; color: var(--text-3); font-style: italic; min-height: 50px;
+}
+
+/* ── INPUTS ── */
+.field {
+  width: 100%;
+  background: var(--inset);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-sm);
+  padding: 13px 16px;
+  font-family: 'Libre Baskerville', serif; font-size: 13px; color: var(--text);
+  outline: none; resize: none; line-height: 1.6; min-height: 46px;
+  transition: border-color 0.15s, background 0.15s;
+  backdrop-filter: blur(8px);
+}
+.field::placeholder { color: var(--text-3); }
+.field:focus {
+  border-color: rgba(52,199,89,0.4);
+  background: rgba(52,199,89,0.04);
+  box-shadow: 0 0 0 3px rgba(52,199,89,0.08);
+}
+.field-center { text-align: center; font-style: italic; font-size: 15px; }
+.field-center:focus { border-color: rgba(0,122,255,0.4); box-shadow: 0 0 0 3px rgba(0,122,255,0.08); background: rgba(0,122,255,0.03); }
+
+.grat-row { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 10px; }
+.grat-n {
+  font-family: 'Josefin Sans', sans-serif; font-size: 11px; color: var(--text-3);
+  padding-top: 15px; flex-shrink: 0; width: 18px; text-align: right;
+}
+
+/* ── BUTTONS ── */
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 11px 24px; border-radius: 22px; border: none;
+  font-family: 'Josefin Sans', sans-serif; font-size: 11px; font-weight: 600;
+  letter-spacing: 0.18em; text-transform: uppercase;
+  cursor: pointer; transition: all 0.18s;
+  position: relative; overflow: hidden;
+}
+.btn::after {
+  content: ''; position: absolute; inset: 0;
+  background: rgba(255,255,255,0); transition: background 0.15s;
+}
+.btn:hover::after { background: rgba(255,255,255,0.1); }
+.btn:active { transform: scale(0.97); }
+
+.btn-p {
+  background: var(--grad-accent);
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(52,199,89,0.35);
+}
+.btn-p:hover { box-shadow: 0 6px 22px rgba(52,199,89,0.45); transform: translateY(-1px); }
+.btn-p:disabled { opacity: 0.45; cursor: default; transform: none; box-shadow: none; }
+
+.btn-s {
+  background: var(--glass);
+  color: var(--text-2);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(12px);
+}
+.btn-s:hover { background: var(--glass-hover); color: var(--text); }
+
+.btn-b {
+  background: var(--grad-cool);
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(0,122,255,0.3);
+}
+.btn-b:hover { box-shadow: 0 6px 22px rgba(0,122,255,0.4); transform: translateY(-1px); }
+
+.btn-a {
+  background: var(--grad-warm);
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(255,159,10,0.3);
+}
+.btn-a:hover { box-shadow: 0 6px 22px rgba(255,159,10,0.4); transform: translateY(-1px); }
+
+.btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 20px; }
+
+/* ── SAVED ENTRIES ── */
+.saved-wrap { margin-top: 24px; }
+.entries-lbl {
+  font-family: 'Josefin Sans', sans-serif; font-size: 10px;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3); margin-bottom: 10px;
+}
+.entry {
+  background: var(--glass-deep);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(16px);
+  border-radius: var(--r-sm); padding: 16px 18px; margin-bottom: 8px;
+  animation: rise 0.25s ease;
+}
+.entry-date {
+  font-family: 'Josefin Sans', sans-serif; font-size: 10px;
+  color: var(--text-3); margin-bottom: 10px; letter-spacing: 0.05em;
+}
+.entry-items { list-style: none; }
+.entry-items li {
+  font-size: 13px; color: var(--text-2); padding: 3px 0 3px 14px;
+  position: relative; line-height: 1.5;
+}
+.entry-items li::before { content: '–'; position: absolute; left: 0; color: var(--text-3); }
+.entry-intent {
+  margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--glass-border);
+  font-size: 12px; color: var(--text-3); font-style: italic;
+}
+
+/* ── REFRAME ── */
+.step-dots { display: flex; gap: 6px; margin-bottom: 22px; align-items: center; }
+.sdot { width: 6px; height: 6px; border-radius: 3px; background: var(--glass); border: 1px solid var(--glass-border); transition: all 0.25s; }
+.sdot.active { background: var(--grad-warm); border-color: transparent; width: 22px; }
+.sdot.done { background: var(--green); border-color: transparent; opacity: 0.6; }
+.reframe-step { display: none; }
+.reframe-step.active { display: block; animation: rise 0.22s ease; }
+
+.thought-pill {
+  background: var(--inset);
+  border-left: 2px solid var(--amber);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  padding: 13px 17px;
+  font-family: 'Playfair Display', serif;
+  font-size: 17px; color: var(--text-2);
+  font-style: italic; line-height: 1.65; margin: 12px 0;
+}
+.q-opt {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 12px 16px; background: var(--glass-deep);
+  border: 1px solid var(--glass-border); border-radius: var(--r-sm);
+  margin-bottom: 7px; cursor: pointer;
+  font-size: 13px; color: var(--text-2); line-height: 1.55; transition: all 0.15s;
+  backdrop-filter: blur(12px);
+}
+.q-opt:hover { background: var(--glass); color: var(--text); border-color: rgba(0,122,255,0.3); }
+.q-opt.sel {
+  background: rgba(0,122,255,0.1);
+  border-color: rgba(0,122,255,0.4);
+  color: var(--text);
+  box-shadow: 0 0 0 3px rgba(0,122,255,0.08);
+}
+.q-dash { color: var(--text-3); flex-shrink: 0; }
+.chosen-q {
+  background: rgba(0,122,255,0.08); border: 1px solid rgba(0,122,255,0.25);
+  border-radius: var(--r-sm); padding: 12px 16px;
+  font-size: 13px; color: #5eb0ff; font-style: italic;
+  margin-bottom: 18px; line-height: 1.6;
+}
+[data-theme="light"] .chosen-q { color: #1a5fa0; }
+.reframe-out {
+  background: linear-gradient(135deg, rgba(52,199,89,0.1) 0%, rgba(0,122,255,0.07) 100%);
+  border: 1px solid rgba(52,199,89,0.25);
+  border-radius: var(--r); padding: 22px;
+  margin-top: 16px; display: none; animation: rise 0.3s ease;
+  backdrop-filter: blur(16px);
+}
+.reframe-out.show { display: block; }
+.reframe-out-lbl {
+  font-family: 'Josefin Sans', sans-serif; font-size: 10px;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  background: var(--grad-accent);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text; margin-bottom: 12px; display: inline-block;
+}
+.reframe-out-text {
+  font-family: 'Playfair Display', serif;
+  font-size: 20px; font-weight: 400; font-style: italic;
+  color: var(--text); line-height: 1.65;
+}
+
+.ai-load { display: flex; align-items: center; gap: 10px; color: var(--text-3); font-size: 13px; }
+.dots span {
+  display: inline-block; width: 4px; height: 4px;
+  border-radius: 50%; background: currentColor;
+  animation: blink 1.2s infinite; margin: 0 1px;
+}
+.dots span:nth-child(2) { animation-delay: 0.2s; }
+.dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes blink { 0%,60%,100%{opacity:0.2} 30%{opacity:1} }
+
+.saved-rf { margin-top: 12px; }
+.rf-item {
+  background: var(--glass-deep); border: 1px solid var(--glass-border);
+  border-radius: var(--r-sm); padding: 15px 17px; margin-bottom: 8px;
+  backdrop-filter: blur(12px);
+}
+.rf-date { font-family: 'Josefin Sans', sans-serif; font-size: 10px; color: var(--text-3); margin-bottom: 7px; }
+.rf-thought { font-size: 12px; color: var(--text-3); font-style: italic; margin-bottom: 7px; }
+.rf-text { font-size: 13px; color: var(--text-2); line-height: 1.6; }
+
+/* ── AFFIRMATIONS ── */
+.filter-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 18px; }
+.fbtn {
+  padding: 6px 16px; border-radius: 20px;
+  background: var(--glass); border: 1px solid var(--glass-border);
+  font-family: 'Libre Baskerville', serif; font-size: 12px; color: var(--text-3);
+  cursor: pointer; transition: all 0.15s; backdrop-filter: blur(12px);
+}
+.fbtn:hover { color: var(--text-2); background: var(--glass-hover); }
+.fbtn.active {
+  background: var(--grad-accent); border-color: transparent;
+  color: #fff;
+  box-shadow: 0 3px 12px rgba(52,199,89,0.3);
+}
+
+.affirm-stage {
+  text-align: center; padding: 40px 20px 32px;
+  background: linear-gradient(160deg, rgba(52,199,89,0.06) 0%, rgba(0,122,255,0.05) 50%, rgba(255,159,10,0.05) 100%);
+  border-radius: var(--r-sm);
+}
+.affirm-glyph { font-size: 32px; margin-bottom: 20px; filter: drop-shadow(0 4px 12px rgba(0,0,0,0.3)); }
+.affirm-text {
+  font-family: 'Playfair Display', serif;
+  font-size: 26px; font-weight: 400; font-style: italic; color: var(--text);
+  line-height: 1.45; letter-spacing: 0.01em;
+  margin-bottom: 20px; min-height: 62px;
+  display: flex; align-items: center; justify-content: center;
+  transition: opacity 0.25s;
+}
+.affirm-tag {
+  display: inline-block; font-family: 'Josefin Sans', sans-serif;
+  font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+  padding: 5px 14px; border-radius: 20px; margin-bottom: 26px;
+  backdrop-filter: blur(8px);
+}
+.t-future  { background: rgba(52,199,89,0.15);  color: #34c759; border: 1px solid rgba(52,199,89,0.3); }
+.t-self    { background: rgba(255,55,95,0.12);  color: #ff6b8a; border: 1px solid rgba(255,55,95,0.25); }
+[data-theme="light"] .t-self { color: #cc2244; }
+.t-strength{ background: rgba(0,122,255,0.12);  color: #5eb0ff; border: 1px solid rgba(0,122,255,0.25); }
+[data-theme="light"] .t-strength { color: #1a5fa0; }
+.t-calm    { background: rgba(255,159,10,0.12); color: #ff9f0a; border: 1px solid rgba(255,159,10,0.25); }
+.affirm-btns { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+
+.fav-lbl {
+  font-family: 'Josefin Sans', sans-serif; font-size: 10px;
+  letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-3);
+  margin: 28px 0 10px;
+}
+.fav-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.fav-item {
+  background: var(--glass-deep); border: 1px solid var(--glass-border);
+  border-radius: var(--r-sm); padding: 14px 16px;
+  font-size: 12px; color: var(--text-2); font-style: italic; line-height: 1.55;
+  position: relative; backdrop-filter: blur(12px);
+}
+.fav-rm {
+  position: absolute; top: 8px; right: 10px;
+  background: none; border: none; color: var(--text-3); cursor: pointer;
+  font-size: 13px; opacity: 0; transition: opacity 0.15s;
+}
+.fav-item:hover .fav-rm { opacity: 1; }
+
+/* ── MOOD ── */
+.streak-card {
+  display: flex; align-items: center; gap: 20px;
+  background: linear-gradient(135deg, rgba(52,199,89,0.12) 0%, rgba(0,122,255,0.09) 100%);
+  backdrop-filter: saturate(160%) blur(var(--blur));
+  -webkit-backdrop-filter: saturate(160%) blur(var(--blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r); padding: 20px 24px; margin-bottom: 12px;
+  box-shadow: var(--shadow);
+  position: relative; overflow: hidden;
+}
+.streak-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(52,199,89,0.5), rgba(0,122,255,0.5), transparent);
+}
+.streak-n {
+  font-family: 'Playfair Display', serif; font-size: 52px; font-weight: 300;
+  background: var(--grad-accent);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text; line-height: 1; flex-shrink: 0;
+}
+.streak-copy h3 { font-size: 11px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--text); font-family: 'Josefin Sans', sans-serif; }
+.streak-copy p { font-size: 12px; color: var(--text-3); margin-top: 4px; font-family: 'Libre Baskerville', serif; font-style: italic; }
+
+.mood-grid { display: flex; gap: 7px; margin: 14px 0; }
+.mood-btn {
+  flex: 1; padding: 13px 4px;
+  background: var(--glass-deep); border: 1px solid var(--glass-border);
+  border-radius: var(--r-sm); cursor: pointer; transition: all 0.18s;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  backdrop-filter: blur(12px);
+}
+.mood-emoji { font-size: 22px; }
+.mood-lbl { font-size: 11px; color: var(--text-3); }
+.mood-btn:hover { background: var(--glass); transform: translateY(-2px); box-shadow: var(--shadow-sm); }
+.m1 { border-color: rgba(255,55,95,0.4);  background: rgba(255,55,95,0.08); }
+.m2 { border-color: rgba(255,159,10,0.4); background: rgba(255,159,10,0.07); }
+.m3 { border-color: var(--glass-border);  background: var(--glass); }
+.m4 { border-color: rgba(0,122,255,0.4);  background: rgba(0,122,255,0.07); }
+.m5 { border-color: rgba(52,199,89,0.4);  background: rgba(52,199,89,0.08); }
+
+.mood-note-wrap { display: none; margin-top: 14px; animation: rise 0.2s ease; }
+.mood-note-wrap.show { display: block; }
+
+/* Logged today state */
+.mood-logged-row {
+  display: flex; align-items: center; gap: 14px;
+}
+.mood-logged-emoji { font-size: 36px; flex-shrink: 0; filter: drop-shadow(0 2px 8px rgba(0,0,0,0.3)); }
+.mood-logged-info { flex: 1; }
+.mood-logged-label {
+  font-size: 17px; font-weight: 500; color: var(--text); line-height: 1.2;
+}
+.mood-logged-sub {
+  font-family: 'Josefin Sans', sans-serif; font-size: 10px; letter-spacing: 0.1em;
+  color: var(--text-3); text-transform: uppercase; margin-top: 4px;
+}
+.mood-change-btn { flex-shrink: 0; }
+.mood-logged-note {
+  margin-top: 12px; padding-top: 12px;
+  border-top: 1px solid var(--glass-border);
+  font-size: 13px; color: var(--text-2); font-style: italic; line-height: 1.55;
+}
+
+/* ── CHART ── */
+.chart-bars { display: flex; align-items: flex-end; gap: 6px; height: 80px; }
+.bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.bar {
+  width: 100%; border-radius: 4px 4px 0 0;
+  background: var(--glass);
+  transition: height 0.55s cubic-bezier(0.4,0,0.2,1);
+  min-height: 3px; position: relative;
+}
+.bar.today {
+  background: var(--grad-accent);
+  box-shadow: 0 0 16px rgba(52,199,89,0.35);
+}
+.bar-val {
+  position: absolute; top: -16px; left: 50%; transform: translateX(-50%);
+  font-family: 'Josefin Sans', sans-serif; font-size: 10px; color: var(--green); white-space: nowrap;
+}
+.bar-day { font-family: 'Josefin Sans', sans-serif; font-size: 10px; color: var(--text-3); }
+.chart-days { display: flex; gap: 6px; margin-top: 4px; }
+
+.insights-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.insight {
+  background: var(--glass-deep); border: 1px solid var(--glass-border);
+  border-radius: var(--r-sm); padding: 16px 18px;
+  backdrop-filter: blur(16px);
+}
+.insight-val {
+  font-family: 'Josefin Sans', sans-serif; font-size: 22px;
+  background: var(--grad-accent);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.insight-lbl { font-size: 11px; color: var(--text-3); margin-top: 5px; }
+
+/* ── HISTORY ── */
+.hist-filter-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 20px; }
+.hist-fbtn {
+  padding: 6px 16px; border-radius: 20px;
+  background: var(--glass); border: 1px solid var(--glass-border);
+  font-family: 'Libre Baskerville', serif; font-size: 12px; color: var(--text-3);
+  cursor: pointer; transition: all 0.15s; backdrop-filter: blur(12px);
+}
+.hist-fbtn:hover { color: var(--text-2); background: var(--glass-hover); }
+.hist-fbtn.active { background: var(--grad-cool); border-color: transparent; color: #fff; box-shadow: 0 3px 12px rgba(0,122,255,0.3); }
+
+.hist-timeline { position: relative; padding-left: 28px; }
+.hist-timeline::before {
+  content: ''; position: absolute;
+  left: 7px; top: 8px; bottom: 8px; width: 1px;
+  background: linear-gradient(180deg, var(--green), var(--blue), var(--purple), transparent);
+  opacity: 0.25;
+}
+.hist-group { margin-bottom: 28px; }
+.hist-group-date {
+  font-family: 'Josefin Sans', sans-serif; font-size: 10px;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--text-3); margin-bottom: 10px;
+  display: flex; align-items: center; gap: 10px;
+}
+.hist-group-date::before {
+  content: ''; position: absolute; left: 3px;
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--grad-accent);
+  box-shadow: 0 0 8px rgba(52,199,89,0.5);
+}
+
+.hist-item {
+  background: var(--glass);
+  backdrop-filter: blur(var(--blur));
+  -webkit-backdrop-filter: blur(var(--blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-sm);
+  padding: 16px 18px; margin-bottom: 8px;
+  box-shadow: var(--shadow-sm);
+  position: relative; overflow: hidden;
+  animation: rise 0.3s ease;
+}
+.hist-item::before {
+  content: ''; position: absolute;
+  top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent);
+}
+.hist-item-header {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+}
+.hist-type-badge {
+  font-family: 'Josefin Sans', sans-serif; font-size: 9px;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  padding: 3px 10px; border-radius: 20px; flex-shrink: 0;
+}
+.badge-grat  { background: rgba(52,199,89,0.15);  color: #34c759; border: 1px solid rgba(52,199,89,0.3); }
+.badge-mood  { background: rgba(0,122,255,0.12);   color: #5eb0ff; border: 1px solid rgba(0,122,255,0.25); }
+[data-theme="light"] .badge-mood { color: #1a5fa0; }
+.badge-rf    { background: rgba(255,159,10,0.12);  color: #ff9f0a; border: 1px solid rgba(255,159,10,0.25); }
+.hist-item-time {
+  font-family: 'Josefin Sans', sans-serif; font-size: 10px;
+  color: var(--text-3); margin-left: auto;
+}
+
+.hist-grat-items { list-style: none; }
+.hist-grat-items li {
+  font-size: 13px; color: var(--text-2); padding: 3px 0 3px 14px;
+  position: relative; line-height: 1.5;
+}
+.hist-grat-items li::before { content: '–'; position: absolute; left: 0; color: var(--text-3); }
+.hist-intention {
+  margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--glass-border);
+  font-size: 12px; color: var(--text-3); font-style: italic;
+}
+
+.hist-mood-row { display: flex; align-items: center; gap: 12px; }
+.hist-mood-emoji { font-size: 28px; }
+.hist-mood-info h4 { font-size: 14px; font-weight: 500; color: var(--text); }
+.hist-mood-info p { font-size: 12px; color: var(--text-3); margin-top: 3px; line-height: 1.5; }
+.hist-mood-bar-wrap {
+  margin-left: auto; display: flex; align-items: center; gap: 6px;
+  flex-shrink: 0;
+}
+.hist-mood-bar {
+  width: 60px; height: 5px; border-radius: 3px;
+  background: var(--glass); overflow: hidden;
+}
+.hist-mood-fill { height: 100%; border-radius: 3px; background: var(--grad-accent); }
+
+.hist-rf-thought {
+  font-size: 13px; color: var(--text-3); font-style: italic;
+  margin-bottom: 8px; padding-left: 10px;
+  border-left: 2px solid var(--amber);
+  line-height: 1.5;
+}
+.hist-rf-reframe { font-size: 13px; color: var(--text-2); line-height: 1.65; }
+
+.hist-empty {
+  text-align: center; padding: 60px 20px;
+  color: var(--text-3); font-size: 14px; line-height: 1.6;
+}
+.hist-empty-icon { font-size: 36px; margin-bottom: 14px; opacity: 0.5; }
+
+/* Summary stats row */
+.hist-stats {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+  margin-bottom: 20px;
+}
+.hist-stat {
+  background: var(--glass);
+  backdrop-filter: blur(var(--blur));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r-sm); padding: 14px 16px;
+  text-align: center; box-shadow: var(--shadow-sm);
+}
+.hist-stat-val {
+  font-family: 'Josefin Sans', sans-serif; font-size: 24px;
+  background: var(--grad-cool);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text; line-height: 1;
+}
+.hist-stat-lbl { font-size: 11px; color: var(--text-3); margin-top: 5px; }
+
+/* ── TOAST ── */
+.toast {
+  position: fixed; bottom: 28px; left: 50%;
+  transform: translateX(-50%) translateY(12px);
+  background: var(--glass);
+  backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--glass-border);
+  color: var(--text); padding: 11px 24px; border-radius: 22px;
+  font-size: 13px; font-weight: 400;
+  opacity: 0; transition: all 0.28s cubic-bezier(0.4,0,0.2,1);
+  z-index: 999; pointer-events: none; white-space: nowrap;
+  box-shadow: var(--shadow);
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ── RESET MODAL ── */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 500;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  display: none; align-items: center; justify-content: center;
+  padding: 24px;
+  animation: fadeOverlay 0.2s ease;
+}
+.modal-overlay.show { display: flex; }
+@keyframes fadeOverlay { from{opacity:0} to{opacity:1} }
+.modal-box {
+  background: var(--glass);
+  backdrop-filter: saturate(180%) blur(40px);
+  -webkit-backdrop-filter: saturate(180%) blur(40px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--r);
+  padding: 32px 28px;
+  max-width: 360px; width: 100%;
+  box-shadow: var(--shadow);
+  position: relative; overflow: hidden;
+  animation: riseModal 0.25s cubic-bezier(0.4,0,0.2,1);
+}
+@keyframes riseModal { from{opacity:0;transform:translateY(16px) scale(0.97)} to{opacity:1;transform:translateY(0) scale(1)} }
+.modal-box::before {
+  content: ''; position: absolute;
+  top: 0; left: 0; right: 0; height: 2px;
+  background: var(--grad-warm); opacity: 0.8;
+}
+.modal-icon {
+  font-size: 32px; text-align: center; margin-bottom: 16px;
+  color: var(--amber);
+}
+.modal-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 22px; font-weight: 400; font-style: italic; color: var(--text);
+  text-align: center; margin-bottom: 10px; letter-spacing: -0.01em;
+}
+.modal-body {
+  font-size: 13px; color: var(--text-2); text-align: center;
+  line-height: 1.65; margin-bottom: 24px;
+}
+.modal-btns { display: flex; gap: 10px; justify-content: center; }
+.btn-danger {
+  background: var(--grad-warm);
+  color: #fff; border: none;
+  box-shadow: 0 4px 16px rgba(255,55,95,0.3);
+}
+.btn-danger:hover { opacity: 0.88; transform: translateY(-1px); box-shadow: 0 6px 22px rgba(255,55,95,0.4); }
+
+@media (max-width: 540px) {
+  .fav-grid { grid-template-columns: 1fr; }
+  .insights-grid { grid-template-columns: 1fr; }
+  .nav-date { display: none; }
+  main { padding: 32px 16px 80px; }
+}
+
+/* ── MILESTONES ── */
+.milestones-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 24px; }
+.milestone {
+  background: var(--glass); border: 1px solid var(--glass-border);
+  border-radius: var(--r-sm); padding: 16px 12px; text-align: center;
+  backdrop-filter: blur(var(--blur)); transition: all 0.2s;
+}
+.milestone.earned {
+  background: linear-gradient(135deg, rgba(52,199,89,0.15), rgba(0,122,255,0.1));
+  border-color: rgba(52,199,89,0.35);
+  box-shadow: 0 0 20px rgba(52,199,89,0.15);
+}
+.milestone-icon { font-size: 26px; margin-bottom: 8px; filter: grayscale(1) opacity(0.3); }
+.milestone.earned .milestone-icon { filter: none; }
+.milestone-name { font-size: 11px; font-weight: 500; color: var(--text-3); line-height: 1.3; }
+.milestone.earned .milestone-name { color: var(--text-2); }
+.milestone-req { font-family: 'Josefin Sans', sans-serif; font-size: 10px; color: var(--text-3); margin-top: 4px; }
+.milestone.earned .milestone-req { color: var(--green); }
+
+/* ── WORRY JOURNAL ── */
+.worry-input-row { display: flex; gap: 10px; margin-bottom: 14px; align-items: flex-start; }
+.worry-list { margin-top: 4px; }
+.worry-item {
+  background: var(--glass-deep); border: 1px solid var(--glass-border);
+  border-radius: var(--r-sm); padding: 14px 16px; margin-bottom: 8px;
+  animation: rise 0.25s ease; backdrop-filter: blur(12px);
+  position: relative;
+}
+.worry-item.contained { border-color: rgba(52,199,89,0.3); background: rgba(52,199,89,0.05); }
+.worry-text { font-size: 13px; color: var(--text-2); line-height: 1.55; margin-bottom: 10px; }
+.worry-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.worry-time-badge {
+  font-family: 'Josefin Sans', sans-serif; font-size: 10px; letter-spacing: 0.1em;
+  padding: 3px 10px; border-radius: 20px; cursor: pointer;
+  background: rgba(255,159,10,0.12); color: var(--amber);
+  border: 1px solid rgba(255,159,10,0.25);
+}
+.worry-item.contained .worry-time-badge { background: rgba(52,199,89,0.12); color: var(--green); border-color: rgba(52,199,89,0.25); }
+.worry-del { margin-left: auto; background: none; border: none; color: var(--text-3); cursor: pointer; font-size: 13px; opacity: 0; transition: opacity 0.15s; }
+.worry-item:hover .worry-del { opacity: 1; }
+.worry-window-info {
+  background: linear-gradient(135deg, rgba(255,159,10,0.08), rgba(255,55,95,0.06));
+  border: 1px solid rgba(255,159,10,0.2); border-radius: var(--r-sm);
+  padding: 14px 18px; margin-bottom: 14px;
+  font-size: 13px; color: var(--text-2); line-height: 1.6;
+}
+.worry-window-info strong { color: var(--amber); font-weight: 500; }
+
+/* ── DAILY WINS ── */
+.win-input-row { display: flex; gap: 10px; margin-bottom: 14px; align-items: flex-start; }
+.win-list { margin-top: 4px; }
+.win-item {
+  background: var(--glass-deep); border: 1px solid var(--glass-border);
+  border-radius: var(--r-sm); padding: 14px 16px; margin-bottom: 8px;
+  animation: rise 0.25s ease; backdrop-filter: blur(12px);
+  display: flex; align-items: flex-start; gap: 12px;
+}
+.win-star { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+.win-content { flex: 1; }
+.win-text { font-size: 13px; color: var(--text-2); line-height: 1.55; }
+.win-date { font-family: 'Josefin Sans', sans-serif; font-size: 10px; color: var(--text-3); margin-top: 4px; }
+.win-del { background: none; border: none; color: var(--text-3); cursor: pointer; font-size: 13px; opacity: 0; transition: opacity 0.15s; flex-shrink: 0; }
+.win-item:hover .win-del { opacity: 1; }
+
+/* ── AI INSIGHTS ── */
+.insight-panel {
+  background: var(--glass); border: 1px solid var(--glass-border);
+  border-radius: var(--r); padding: 28px; margin-bottom: 14px;
+  backdrop-filter: saturate(160%) blur(var(--blur));
+  box-shadow: var(--shadow); position: relative; overflow: hidden;
+}
+.insight-panel::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: var(--grad-cool); opacity: 0.8;
+}
+.insight-panel-eyebrow {
+  font-family: 'Josefin Sans', sans-serif; font-size: 10px;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  background: var(--grad-cool);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text; margin-bottom: 14px; display: inline-block;
+}
+.insight-panel-text {
+  font-family: 'Libre Baskerville', serif;
+  font-size: 15px; font-style: italic; color: var(--text);
+  line-height: 1.8;
+}
+.insight-panel-text.loading { color: var(--text-3); font-style: italic; }
+.insight-generate-btn { margin-top: 18px; }
+
+.mood-cal-grid {
+  display: grid; grid-template-columns: repeat(7,1fr); gap: 5px; margin-top: 14px;
+}
+.mood-cal-day {
+  aspect-ratio: 1; border-radius: 6px;
+  background: var(--glass-deep); border: 1px solid var(--glass-border);
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'Josefin Sans', sans-serif; font-size: 9px; color: var(--text-3);
+  position: relative; cursor: default;
+}
+.mood-cal-day.has-mood { border-color: transparent; }
+.mood-cal-day.mood-1 { background: rgba(255,55,95,0.25); }
+.mood-cal-day.mood-2 { background: rgba(255,159,10,0.2); }
+.mood-cal-day.mood-3 { background: rgba(150,150,180,0.2); }
+.mood-cal-day.mood-4 { background: rgba(0,122,255,0.2); }
+.mood-cal-day.mood-5 { background: rgba(52,199,89,0.25); }
+.mood-cal-day.today { outline: 2px solid var(--green); outline-offset: 1px; }
+.mood-cal-header { display: grid; grid-template-columns: repeat(7,1fr); gap: 5px; margin-bottom: 5px; }
+.mood-cal-hdr { text-align: center; font-family: 'Josefin Sans', sans-serif; font-size: 9px; color: var(--text-3); letter-spacing: 0.08em; }
+.mood-legend { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; align-items: center; }
+.mood-legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-3); }
+.mood-legend-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+
+/* ── NOTIFICATION BANNER ── */
+.notif-banner {
+  background: linear-gradient(135deg, rgba(0,122,255,0.12), rgba(191,90,242,0.08));
+  border: 1px solid rgba(0,122,255,0.25); border-radius: var(--r-sm);
+  padding: 14px 18px; margin-bottom: 14px;
+  display: flex; align-items: center; gap: 12px;
+}
+.notif-banner-text { flex: 1; font-size: 13px; color: var(--text-2); line-height: 1.5; }
+.notif-banner-text strong { color: var(--text); font-weight: 500; }
+</style>
+</head>
+<body>
+
+<!-- Animated background -->
+<div class="bg-canvas">
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+  <div class="orb orb-4"></div>
+</div>
+
+<nav>
+  <div class="nav-logo">bloom</div>
+  <div class="nav-tabs">
+    <button class="nav-tab active" onclick="showSection('gratitude',this)">Gratitude</button>
+    <button class="nav-tab" onclick="showSection('reframe',this)">Reframe</button>
+    <button class="nav-tab" onclick="showSection('affirm',this)">Affirm</button>
+    <button class="nav-tab" onclick="showSection('mood',this)">Mood</button>
+    <button class="nav-tab" onclick="showSection('worry',this)">Worries</button>
+    <button class="nav-tab" onclick="showSection('wins',this)">Wins</button>
+    <button class="nav-tab" onclick="showSection('journal',this)">Journal</button>
+  </div>
+  <div class="nav-date" id="navDate"></div>
+  <button class="theme-btn" onclick="showResetConfirm()" title="Reset all data" style="color:var(--text-3)">↺</button>
+  <button class="theme-btn" id="themeToggle" onclick="toggleTheme()"><span id="themeIcon">☀</span></button>
+</nav>
+
+<main>
+
+  <!-- GRATITUDE -->
+  <section class="section active" id="gratitude">
+    <div class="section-header">
+      <div class="eyebrow">Daily practice</div>
+      <h1>What are you grateful for today?</h1>
+      <p>Three small things. The warmth of a morning cup counts.</p>
+    </div>
+
+    <div class="quote-card">
+      <div class="quote-eyebrow">Today's thought</div>
+      <div class="quote-text" id="dailyQuoteText">
+        <div class="quote-loading">Finding today's words <div class="dots"><span></span><span></span><span></span></div></div>
+      </div>
+      <div class="quote-author" id="dailyQuoteAuthor"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Three things</div>
+      <div class="grat-row"><div class="grat-n">01</div><textarea class="field" id="g1" placeholder="I'm grateful for…" rows="1" oninput="autoResize(this)"></textarea></div>
+      <div class="grat-row"><div class="grat-n">02</div><textarea class="field" id="g2" placeholder="I'm grateful for…" rows="1" oninput="autoResize(this)"></textarea></div>
+      <div class="grat-row"><div class="grat-n">03</div><textarea class="field" id="g3" placeholder="I'm grateful for…" rows="1" oninput="autoResize(this)"></textarea></div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Today's intention</div>
+      <input class="field field-center" id="intention" type="text" placeholder="One word or phrase for your day…">
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-p" onclick="saveGratitude()">Save entry</button>
+      <button class="btn btn-s" onclick="clearGratitude()">Clear</button>
+    </div>
+
+    <div class="saved-wrap" id="savedEntries"></div>
+  </section>
+
+  <!-- REFRAME -->
+  <section class="section" id="reframe">
+    <div class="section-header">
+      <div class="eyebrow">Thought work</div>
+      <h1>Reframe a negative thought</h1>
+      <p>Challenge worry with curiosity. Your thoughts are not facts.</p>
+    </div>
+
+    <div class="card">
+      <div class="step-dots">
+        <div class="sdot active" id="dot1"></div>
+        <div class="sdot" id="dot2"></div>
+        <div class="sdot" id="dot3"></div>
+      </div>
+
+      <div class="reframe-step active" id="step1">
+        <div class="card-label">Step 1 — Name it</div>
+        <p style="font-size:13px;color:var(--text-3);margin-bottom:14px;line-height:1.65;">Write the thought that's been on your mind. Don't judge it — just let it out.</p>
+        <textarea class="field" id="negThought" placeholder="e.g. Things never get better for me…" rows="3" style="width:100%"></textarea>
+        <div class="btn-row"><button class="btn btn-a" onclick="nextStep(2)">Continue →</button></div>
+      </div>
+
+      <div class="reframe-step" id="step2">
+        <div class="card-label">Step 2 — Explore it</div>
+        <p style="font-size:13px;color:var(--text-3);margin-bottom:4px;">Your thought:</p>
+        <div class="thought-pill" id="thoughtDisplay"></div>
+        <p style="font-size:13px;color:var(--text-3);margin-bottom:10px;">Choose a question:</p>
+        <div class="q-opt" onclick="selectQ(this,'Is there actual evidence this is true, or am I predicting?')"><span class="q-dash">—</span>Is there actual evidence this is true, or am I predicting?</div>
+        <div class="q-opt" onclick="selectQ(this,'What would I say to a friend who had this thought?')"><span class="q-dash">—</span>What would I say to a friend who had this thought?</div>
+        <div class="q-opt" onclick="selectQ(this,'Have I handled hard things before? What happened?')"><span class="q-dash">—</span>Have I handled hard things before? What happened?</div>
+        <div class="q-opt" onclick="selectQ(this,'What is the most realistic outcome — not best or worst?')"><span class="q-dash">—</span>What is the most realistic outcome — not best or worst?</div>
+        <div class="btn-row">
+          <button class="btn btn-s" onclick="nextStep(1)">← Back</button>
+          <button class="btn btn-a" id="toStep3Btn" onclick="nextStep(3)" style="display:none">Continue →</button>
+        </div>
+      </div>
+
+      <div class="reframe-step" id="step3">
+        <div class="card-label">Step 3 — Reframe</div>
+        <p style="font-size:13px;color:var(--text-3);margin-bottom:4px;">Your thought:</p>
+        <div class="thought-pill" id="thoughtDisplay2"></div>
+        <div class="chosen-q" id="chosenQ"></div>
+        <button class="btn btn-p" id="reframeBtn" onclick="getReframe()">Get a gentle reframe</button>
+        <div class="reframe-out" id="reframeResult">
+          <div class="reframe-out-lbl">A kinder perspective</div>
+          <div class="reframe-out-text" id="reframeText"></div>
+          <div class="btn-row">
+            <button class="btn btn-s" onclick="resetReframe()">Start over</button>
+            <button class="btn btn-p" onclick="saveReframe()">Save this</button>
+          </div>
+        </div>
+        <div class="btn-row" style="margin-top:10px;"><button class="btn btn-s" onclick="nextStep(2)">← Back</button></div>
+      </div>
+    </div>
+
+    <div class="saved-rf" id="savedReframes"></div>
+  </section>
+
+  <!-- AFFIRM -->
+  <section class="section" id="affirm">
+    <div class="section-header">
+      <div class="eyebrow">Daily affirmation</div>
+      <h1>Words for your future self</h1>
+      <p>Let a gentle truth land with you today.</p>
+    </div>
+
+    <div class="filter-row">
+      <button class="fbtn active" onclick="setCategory('all',this)">All</button>
+      <button class="fbtn" onclick="setCategory('future',this)">Future</button>
+      <button class="fbtn" onclick="setCategory('self',this)">Self-worth</button>
+      <button class="fbtn" onclick="setCategory('strength',this)">Strength</button>
+      <button class="fbtn" onclick="setCategory('calm',this)">Calm</button>
+    </div>
+
+    <div class="card">
+      <div class="affirm-stage">
+        <div class="affirm-glyph" id="affirmIcon">🌿</div>
+        <div class="affirm-text" id="affirmText">"Good things are unfolding for me, even when I can't see them yet."</div>
+        <div class="affirm-tag t-future" id="affirmCat">Future</div>
+        <div class="affirm-btns">
+          <button class="btn btn-p" onclick="nextAffirmation()">Next</button>
+          <button class="btn btn-s" onclick="saveAffirmation()">♡ Save</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="favSection" style="display:none">
+      <div class="fav-lbl">Saved</div>
+      <div class="fav-grid" id="favList"></div>
+    </div>
+  </section>
+
+  <!-- MOOD -->
+  <section class="section" id="mood">
+    <div class="section-header">
+      <div class="eyebrow">Check-in</div>
+      <h1>How are you feeling?</h1>
+      <p>Just noticing — no judgement, no pressure.</p>
+    </div>
+
+    <div class="streak-card">
+      <div class="streak-n" id="streakNum">0</div>
+      <div class="streak-copy">
+        <h3>Day streak</h3>
+        <p>Keep checking in daily to grow your streak</p>
+      </div>
+    </div>
+
+    <div class="card" id="moodCard">
+      <div class="card-label">Today's mood</div>
+
+      <!-- Logged state — shown when today is already recorded -->
+      <div id="moodLoggedState" style="display:none">
+        <div class="mood-logged-row">
+          <div id="moodLoggedEmoji" class="mood-logged-emoji"></div>
+          <div class="mood-logged-info">
+            <div id="moodLoggedLabel" class="mood-logged-label"></div>
+            <div class="mood-logged-sub">Logged for today</div>
+          </div>
+          <button class="btn btn-s mood-change-btn" onclick="allowMoodChange()">Change</button>
+        </div>
+        <div id="moodLoggedNote" class="mood-logged-note" style="display:none"></div>
+      </div>
+
+      <!-- Input state — shown when no mood logged yet today, or user clicked Change -->
+      <div id="moodInputState">
+        <div class="mood-grid">
+          <button class="mood-btn" onclick="selectMood(1,this)"><span class="mood-emoji">😔</span><span class="mood-lbl">Low</span></button>
+          <button class="mood-btn" onclick="selectMood(2,this)"><span class="mood-emoji">😕</span><span class="mood-lbl">Unsettled</span></button>
+          <button class="mood-btn" onclick="selectMood(3,this)"><span class="mood-emoji">😐</span><span class="mood-lbl">Neutral</span></button>
+          <button class="mood-btn" onclick="selectMood(4,this)"><span class="mood-emoji">🙂</span><span class="mood-lbl">Good</span></button>
+          <button class="mood-btn" onclick="selectMood(5,this)"><span class="mood-emoji">😊</span><span class="mood-lbl">Bright</span></button>
+        </div>
+        <div class="mood-note-wrap" id="moodNoteArea">
+          <textarea class="field" id="moodNote" placeholder="Any thoughts on why? (optional)" rows="2" style="width:100%"></textarea>
+          <div class="btn-row">
+            <button class="btn btn-p" onclick="saveMood()">Save mood</button>
+            <button class="btn btn-s" id="moodCancelBtn" onclick="cancelMoodChange()" style="display:none">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">This week</div>
+      <div class="chart-bars" id="chartBars"></div>
+      <div class="chart-days" id="chartDays"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Insights</div>
+      <div class="insights-grid">
+        <div class="insight"><div class="insight-val" id="avgMood">—</div><div class="insight-lbl">Avg mood this week</div></div>
+        <div class="insight"><div class="insight-val" id="totalEntries">0</div><div class="insight-lbl">Total check-ins</div></div>
+        <div class="insight"><div class="insight-val" id="bestDay">—</div><div class="insight-lbl">Best day this week</div></div>
+        <div class="insight"><div class="insight-val" id="gratCount">0</div><div class="insight-lbl">Gratitude entries</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- JOURNAL -->
+  <section class="section" id="journal">
+    <div class="section-header">
+      <div class="eyebrow">Your journey</div>
+      <h1>Journal</h1>
+      <p>Your complete record — past entries, mood patterns, milestones, and personalised reflections all in one place.</p>
+    </div>
+
+    <!-- Summary stats -->
+    <div class="hist-stats">
+      <div class="hist-stat">
+        <div class="hist-stat-val" id="hStatGrat">0</div>
+        <div class="hist-stat-lbl">Gratitude entries</div>
+      </div>
+      <div class="hist-stat">
+        <div class="hist-stat-val" id="hStatMood">0</div>
+        <div class="hist-stat-lbl">Mood check-ins</div>
+      </div>
+      <div class="hist-stat">
+        <div class="hist-stat-val" id="hStatRf">0</div>
+        <div class="hist-stat-lbl">Reframes saved</div>
+      </div>
+    </div>
+
+    <!-- Milestones -->
+    <div class="card">
+      <div class="card-label">Milestones</div>
+      <div class="milestones-grid" id="milestonesGrid"></div>
+    </div>
+
+    <!-- Mood calendar -->
+    <div class="card">
+      <div class="card-label">Mood calendar — last 28 days</div>
+      <div class="mood-cal-header">
+        <div class="mood-cal-hdr">Sun</div><div class="mood-cal-hdr">Mon</div>
+        <div class="mood-cal-hdr">Tue</div><div class="mood-cal-hdr">Wed</div>
+        <div class="mood-cal-hdr">Thu</div><div class="mood-cal-hdr">Fri</div>
+        <div class="mood-cal-hdr">Sat</div>
+      </div>
+      <div class="mood-cal-grid" id="moodCalGrid"></div>
+      <div class="mood-legend">
+        <span style="font-size:11px;color:var(--text-3);margin-right:4px">Mood:</span>
+        <div class="mood-legend-item"><div class="mood-legend-dot" style="background:rgba(255,55,95,0.5)"></div>Low</div>
+        <div class="mood-legend-item"><div class="mood-legend-dot" style="background:rgba(255,159,10,0.5)"></div>Unsettled</div>
+        <div class="mood-legend-item"><div class="mood-legend-dot" style="background:rgba(150,150,180,0.4)"></div>Neutral</div>
+        <div class="mood-legend-item"><div class="mood-legend-dot" style="background:rgba(0,122,255,0.4)"></div>Good</div>
+        <div class="mood-legend-item"><div class="mood-legend-dot" style="background:rgba(52,199,89,0.5)"></div>Bright</div>
+      </div>
+    </div>
+
+    <!-- Notification reminder setup -->
+    <div class="card">
+      <div class="card-label">Daily reminders</div>
+      <div class="notif-banner" id="notifBanner">
+        <div class="notif-banner-text"><strong>Stay consistent</strong> — enable a daily reminder to check in with Bloom.</div>
+        <button class="btn btn-b" onclick="requestNotifPermission()">Enable</button>
+      </div>
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+        <label style="font-size:13px;color:var(--text-2)">Reminder time</label>
+        <input type="time" class="field" id="reminderTime" value="08:00" style="width:130px;height:40px">
+        <button class="btn btn-s" onclick="saveReminderTime()">Save time</button>
+      </div>
+      <p style="font-size:12px;color:var(--text-3);margin-top:10px;line-height:1.5;">Note: browser notifications require the app to be open in a tab. For best results, keep Bloom bookmarked and pinned.</p>
+    </div>
+
+    <!-- Weekly AI Reflection -->
+    <div class="insight-panel">
+      <div class="insight-panel-eyebrow">Weekly AI reflection</div>
+      <div class="insight-panel-text" id="weeklyReflectionText">Your personalised weekly reflection will appear here. It draws on your gratitude entries, mood check-ins, and reframes from the past 7 days.</div>
+      <button class="btn btn-b insight-generate-btn" id="generateReflectionBtn" onclick="generateWeeklyReflection()">Generate this week's reflection</button>
+    </div>
+
+    <!-- Mood pattern insights -->
+    <div class="insight-panel">
+      <div class="insight-panel-eyebrow">Mood pattern insights</div>
+      <div class="insight-panel-text" id="moodPatternText">Your mood pattern analysis will appear here once you have at least 5 check-ins logged.</div>
+      <button class="btn btn-b insight-generate-btn" id="generatePatternsBtn" onclick="generateMoodPatterns()">Analyse my patterns</button>
+    </div>
+
+    <!-- Entry timeline -->
+    <div class="card" style="margin-top:8px;">
+      <div class="card-label" style="margin-bottom:14px;">Entry log</div>
+      <div class="hist-filter-row">
+        <button class="hist-fbtn active" onclick="setHistFilter('all',this)">All</button>
+        <button class="hist-fbtn" onclick="setHistFilter('gratitude',this)">Gratitude</button>
+        <button class="hist-fbtn" onclick="setHistFilter('mood',this)">Mood</button>
+        <button class="hist-fbtn" onclick="setHistFilter('reframe',this)">Reframes</button>
+      </div>
+      <div id="histTimeline"></div>
+    </div>
+  </section>
+
+  <!-- WORRY JOURNAL -->
+  <section class="section" id="worry">
+    <div class="section-header">
+      <div class="eyebrow">Worry window</div>
+      <h1>Park your worries here</h1>
+      <p>Write it down, set a time to address it, and let it go until then. Worries deserve a space — just not all day.</p>
+    </div>
+    <div class="worry-window-info">
+      <strong>How this works:</strong> Write a worry, then schedule a "worry window" — a set time to think about it properly. Until then, gently redirect yourself when it surfaces.
+    </div>
+    <div class="card">
+      <div class="card-label">Add a worry</div>
+      <div class="worry-input-row">
+        <textarea class="field" id="worryInput" placeholder="What's on your mind…" rows="2" style="flex:1" oninput="autoResize(this)"></textarea>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <select class="field" id="worryTime" style="flex:1;min-width:160px;height:44px;padding:0 16px">
+          <option value="">No scheduled time</option>
+          <option value="Today 5pm">Today 5pm</option>
+          <option value="Today 8pm">Today 8pm</option>
+          <option value="Tomorrow morning">Tomorrow morning</option>
+          <option value="This weekend">This weekend</option>
+        </select>
+        <button class="btn btn-a" onclick="addWorry()">Add worry</button>
+      </div>
+    </div>
+    <div class="worry-list" id="worryList"></div>
+  </section>
+
+  <!-- DAILY WINS -->
+  <section class="section" id="wins">
+    <div class="section-header">
+      <div class="eyebrow">Daily wins</div>
+      <h1>What went well today?</h1>
+      <p>One small win a day builds real confidence. Nothing is too small — finishing a task, being kind to yourself, getting outside.</p>
+    </div>
+    <div class="card">
+      <div class="card-label">Log a win</div>
+      <div class="win-input-row">
+        <textarea class="field" id="winInput" placeholder="Something that went well…" rows="2" style="flex:1" oninput="autoResize(this)"></textarea>
+        <button class="btn btn-p" onclick="addWin()" style="flex-shrink:0">Add ✦</button>
+      </div>
+    </div>
+    <div class="win-list" id="winList"></div>
+  </section>
+
+</main>
+
+<div class="toast" id="toast"></div>
+
+<!-- Reset confirm modal -->
+<div class="modal-overlay" id="resetModal" onclick="hideResetConfirm(event)">
+  <div class="modal-box">
+    <div class="modal-icon">↺</div>
+    <h2 class="modal-title">Reset all data?</h2>
+    <p class="modal-body">This will permanently clear all your gratitude entries, mood logs, reframes, worries, wins, and saved affirmations. This cannot be undone.</p>
+    <div class="modal-btns">
+      <button class="btn btn-s" onclick="hideResetConfirm()">Cancel</button>
+      <button class="btn btn-danger" onclick="resetAllData()">Yes, reset everything</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const STATE = {
+  gratitude: JSON.parse(localStorage.getItem('bloom_gratitude')||'[]'),
+  moods: JSON.parse(localStorage.getItem('bloom_moods')||'[]'),
+  favAffirmations: JSON.parse(localStorage.getItem('bloom_favs')||'[]'),
+  savedReframes: JSON.parse(localStorage.getItem('bloom_reframes')||'[]'),
+  currentMood:null, currentAffirmIdx:0, currentCategory:'all', selectedQ:null,
+  histFilter: 'all'
+};
+
+const MOOD_LABELS=['','Low','Unsettled','Neutral','Good','Bright'];
+const MOOD_EMOJIS=['','😔','😕','😐','🙂','😊'];
+
+const AFFIRMATIONS = [
+  {text:"Good things are unfolding for me, even when I can't see them yet.",cat:"future",icon:"🌿"},
+  {text:"I am allowed to grow at my own pace.",cat:"self",icon:"🌸"},
+  {text:"I have survived every difficult day so far.",cat:"strength",icon:"🪨"},
+  {text:"I deserve peace and I am moving toward it.",cat:"calm",icon:"🌊"},
+  {text:"The future holds good things I cannot yet imagine.",cat:"future",icon:"✨"},
+  {text:"I am worthy of love and kindness, especially from myself.",cat:"self",icon:"🌷"},
+  {text:"I am stronger than my fears and wiser than my doubts.",cat:"strength",icon:"🌳"},
+  {text:"It is safe for me to let go and breathe.",cat:"calm",icon:"🍃"},
+  {text:"Every day I am becoming a little more of who I want to be.",cat:"future",icon:"🌅"},
+  {text:"I am enough, exactly as I am right now.",cat:"self",icon:"💛"},
+  {text:"I choose to focus on what I can control, gently.",cat:"calm",icon:"🌙"},
+  {text:"My story is still being written and I get to shape it.",cat:"future",icon:"📖"},
+  {text:"I have overcome before, and I will overcome again.",cat:"strength",icon:"🦋"},
+  {text:"I give myself permission to feel calm and at ease.",cat:"calm",icon:"☁️"},
+  {text:"I trust that things are working out, even imperfectly.",cat:"future",icon:"🌱"},
+  {text:"I am not my anxious thoughts — I am the one watching them.",cat:"self",icon:"🔆"},
+  {text:"I am resilient. Difficult moments do not define me.",cat:"strength",icon:"⛰️"},
+  {text:"Peace is available to me in this moment.",cat:"calm",icon:"🕊️"},
+];
+
+document.addEventListener('DOMContentLoaded',()=>{
+  const d=new Date();
+  document.getElementById('navDate').textContent=d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}).toUpperCase();
+  renderGratitudeEntries(); renderMoodChart(); updateInsights();
+  renderSavedReframes(); renderFavAffirmations(); updateStreak();
+  renderMoodSection();
+  renderWorries(); renderWins();
+  loadDailyQuote();
+  // Auto-reschedule reminder if previously granted
+  if(localStorage.getItem('bloom_notif')==='granted') scheduleReminder();
+  // Restore reminder time
+  const savedTime=localStorage.getItem('bloom_reminder_time');
+  if(savedTime){const el=document.getElementById('reminderTime');if(el)el.value=savedTime;}
+  // Hide notif banner if already granted
+  if(Notification&&Notification.permission==='granted'){
+    const b=document.getElementById('notifBanner');if(b)b.style.display='none';
+  }
+});
+
+function showSection(id,btn){
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.nav-tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if(btn) btn.classList.add('active');
+  if(id==='journal'){ renderHistory(); renderMilestones(); renderMoodCalendar(); }
+  if(id==='worry') renderWorries();
+  if(id==='wins') renderWins();
+}
+
+async function loadDailyQuote(){
+  const today=new Date().toLocaleDateString();
+  const cached=JSON.parse(localStorage.getItem('bloom_daily_quote')||'null');
+  if(cached&&cached.date===today){renderQuote(cached.quote,cached.author);return;}
+  const dayOfWeek=new Date().toLocaleDateString('en-US',{weekday:'long'});
+  const month=new Date().toLocaleDateString('en-US',{month:'long'});
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',max_tokens:1000,
+        system:`You are a gentle companion for someone working on gratitude and positivity. Each day offer one thoughtful, calming saying. Quietly wise, not motivational-poster energy. Respond ONLY in JSON: {"quote":"...","author":"..."}`,
+        messages:[{role:'user',content:`Today is ${dayOfWeek} in ${month}. Give one thoughtful, calming saying for someone practicing gratitude and building a positive mindset. Real quote or gentle original, 1-2 sentences.`}]
+      })
+    });
+    const data=await res.json();
+    const parsed=JSON.parse((data.content?.[0]?.text||'{}').replace(/```json|```/g,'').trim());
+    const quote=parsed.quote||"You are already doing something courageous by showing up for yourself today.";
+    const author=parsed.author||"A gentle reminder";
+    localStorage.setItem('bloom_daily_quote',JSON.stringify({date:today,quote,author}));
+    renderQuote(quote,author);
+  }catch(e){
+    const fb=[
+      {quote:"Gratitude turns what we have into enough.",author:"Melody Beattie"},
+      {quote:"You don't have to see the whole staircase, just take the first step.",author:"Martin Luther King Jr."},
+      {quote:"Even the darkest night will end and the sun will rise.",author:"Victor Hugo"},
+      {quote:"Be gentle with yourself — you are a child of the universe.",author:"Max Ehrmann"},
+      {quote:"The present moment always will have been. What you do with it echoes.",author:"A gentle reminder"},
+    ];
+    const f=fb[Math.floor((new Date()-new Date(new Date().getFullYear(),0,0))/86400000)%fb.length];
+    renderQuote(f.quote,f.author);
+  }
+}
+function renderQuote(quote,author){
+  const el=document.getElementById('dailyQuoteText');
+  el.style.opacity='0';
+  setTimeout(()=>{
+    el.textContent='\u201C'+quote+'\u201D';
+    document.getElementById('dailyQuoteAuthor').textContent='— '+author;
+    el.style.transition='opacity 0.6s'; el.style.opacity='1';
+  },120);
+}
+
+function autoResize(el){el.style.height='auto';el.style.height=el.scrollHeight+'px';}
+
+function saveGratitude(){
+  const g1=document.getElementById('g1').value.trim();
+  const g2=document.getElementById('g2').value.trim();
+  const g3=document.getElementById('g3').value.trim();
+  const intention=document.getElementById('intention').value.trim();
+  if(!g1&&!g2&&!g3){showToast('Add at least one thing first');return;}
+  STATE.gratitude.unshift({
+    date:new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'}),
+    items:[g1,g2,g3].filter(Boolean),intention
+  });
+  localStorage.setItem('bloom_gratitude',JSON.stringify(STATE.gratitude));
+  renderGratitudeEntries();clearGratitude();updateInsights();
+  renderMilestones();
+  showToast('Entry saved');
+}
+function clearGratitude(){
+  ['g1','g2','g3'].forEach(id=>{const el=document.getElementById(id);el.value='';el.style.height='auto';});
+  document.getElementById('intention').value='';
+}
+function renderGratitudeEntries(){
+  const el=document.getElementById('savedEntries');
+  if(!STATE.gratitude.length){el.innerHTML='';return;}
+  el.innerHTML='<div class="entries-lbl">Previous entries</div>'+
+    STATE.gratitude.slice(0,5).map(e=>`
+      <div class="entry">
+        <div class="entry-date">${e.date.toUpperCase()}</div>
+        <ul class="entry-items">${e.items.map(i=>`<li>${i}</li>`).join('')}</ul>
+        ${e.intention?`<div class="entry-intent">${e.intention}</div>`:''}
+      </div>`).join('');
+}
+
+function nextStep(n){
+  if(n===2){
+    const t=document.getElementById('negThought').value.trim();
+    if(!t){showToast('Write your thought first');return;}
+    document.getElementById('thoughtDisplay').textContent='\u201C'+t+'\u201D';
+    document.getElementById('thoughtDisplay2').textContent='\u201C'+t+'\u201D';
+  }
+  [1,2,3].forEach(i=>{
+    document.getElementById('step'+i).classList.remove('active');
+    const dot=document.getElementById('dot'+i);
+    dot.classList.remove('active','done');
+    if(i<n) dot.classList.add('done'); else if(i===n) dot.classList.add('active');
+  });
+  document.getElementById('step'+n).classList.add('active');
+}
+function selectQ(el,q){
+  document.querySelectorAll('.q-opt').forEach(e=>e.classList.remove('sel'));
+  el.classList.add('sel'); STATE.selectedQ=q;
+  document.getElementById('chosenQ').textContent=q;
+  document.getElementById('toStep3Btn').style.display='inline-flex';
+}
+async function getReframe(){
+  const thought=document.getElementById('negThought').value.trim();
+  const btn=document.getElementById('reframeBtn');
+  const result=document.getElementById('reframeResult');
+  const textEl=document.getElementById('reframeText');
+  btn.disabled=true; result.classList.add('show');
+  textEl.innerHTML='<div class="ai-load">Thinking <div class="dots"><span></span><span></span><span></span></div></div>';
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',max_tokens:1000,
+        system:`You are a warm, gentle mental wellness companion. Given a negative thought and reframing question, provide a compassionate, realistic, gently optimistic reframe. 2-3 sentences. Warm and human, not clinical. Don't start with "I" or repeat the thought back.`,
+        messages:[{role:'user',content:`Negative thought: "${thought}"\n\nReframing question: "${STATE.selectedQ}"\n\nGentle compassionate reframe:`}]
+      })
+    });
+    const data=await res.json();
+    textEl.textContent=data.content?.[0]?.text||"You are more capable than this thought suggests. Hard moments pass.";
+  }catch(e){
+    textEl.textContent="You have navigated difficult thoughts before and found your way through. Gentler days are ahead.";
+  }
+  btn.disabled=false;
+}
+function saveReframe(){
+  const thought=document.getElementById('negThought').value.trim();
+  const reframe=document.getElementById('reframeText').textContent;
+  if(!reframe||reframe.includes('Thinking')) return;
+  STATE.savedReframes.unshift({thought,reframe,date:new Date().toLocaleDateString()});
+  localStorage.setItem('bloom_reframes',JSON.stringify(STATE.savedReframes));
+  renderSavedReframes();showToast('Reframe saved');
+}
+function renderSavedReframes(){
+  const el=document.getElementById('savedReframes');
+  if(!STATE.savedReframes.length){el.innerHTML='';return;}
+  el.innerHTML=STATE.savedReframes.slice(0,3).map(r=>`
+    <div class="rf-item">
+      <div class="rf-date">${r.date}</div>
+      <div class="rf-thought">"${r.thought.substring(0,60)}${r.thought.length>60?'…':''}"</div>
+      <div class="rf-text">${r.reframe}</div>
+    </div>`).join('');
+}
+function resetReframe(){
+  document.getElementById('negThought').value='';
+  document.getElementById('reframeResult').classList.remove('show');
+  document.querySelectorAll('.q-opt').forEach(e=>e.classList.remove('sel'));
+  STATE.selectedQ=null;
+  document.getElementById('toStep3Btn').style.display='none';
+  nextStep(1);
+}
+
+function getFiltered(){return STATE.currentCategory==='all'?AFFIRMATIONS:AFFIRMATIONS.filter(a=>a.cat===STATE.currentCategory);}
+function setCategory(cat,btn){
+  STATE.currentCategory=cat;STATE.currentAffirmIdx=0;
+  document.querySelectorAll('.fbtn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');showAffirmation(0);
+}
+function showAffirmation(idx){
+  const list=getFiltered();if(!list.length) return;
+  const a=list[idx%list.length];
+  const el=document.getElementById('affirmText');
+  el.style.opacity='0';
+  setTimeout(()=>{el.textContent='\u201C'+a.text+'\u201D';el.style.transition='opacity 0.3s';el.style.opacity='1';},100);
+  document.getElementById('affirmIcon').textContent=a.icon;
+  const catEl=document.getElementById('affirmCat');
+  catEl.textContent=a.cat.charAt(0).toUpperCase()+a.cat.slice(1);
+  catEl.className='affirm-tag t-'+a.cat;
+  STATE.currentAffirmIdx=idx%list.length;
+}
+function nextAffirmation(){showAffirmation(STATE.currentAffirmIdx+1);}
+function saveAffirmation(){
+  const a=getFiltered()[STATE.currentAffirmIdx%getFiltered().length];
+  if(STATE.favAffirmations.find(f=>f.text===a.text)){showToast('Already saved');return;}
+  STATE.favAffirmations.unshift(a);
+  localStorage.setItem('bloom_favs',JSON.stringify(STATE.favAffirmations));
+  renderFavAffirmations();showToast('Saved');
+}
+function renderFavAffirmations(){
+  const sec=document.getElementById('favSection');
+  const list=document.getElementById('favList');
+  if(!STATE.favAffirmations.length){sec.style.display='none';return;}
+  sec.style.display='block';
+  list.innerHTML=STATE.favAffirmations.map((a,i)=>`
+    <div class="fav-item">${a.icon} "${a.text}"
+      <button class="fav-rm" onclick="removeFav(${i})">×</button>
+    </div>`).join('');
+}
+function removeFav(i){
+  STATE.favAffirmations.splice(i,1);
+  localStorage.setItem('bloom_favs',JSON.stringify(STATE.favAffirmations));
+  renderFavAffirmations();
+}
+
+function renderMoodSection(){
+  const today=new Date().toLocaleDateString();
+  const existing=STATE.moods.find(m=>m.date===today);
+  const loggedEl=document.getElementById('moodLoggedState');
+  const inputEl=document.getElementById('moodInputState');
+  if(existing){
+    // Show logged state
+    loggedEl.style.display='block';
+    inputEl.style.display='none';
+    document.getElementById('moodLoggedEmoji').textContent=MOOD_EMOJIS[existing.val];
+    document.getElementById('moodLoggedLabel').textContent=MOOD_LABELS[existing.val];
+    const noteEl=document.getElementById('moodLoggedNote');
+    if(existing.note){noteEl.textContent='"'+existing.note+'"';noteEl.style.display='block';}
+    else noteEl.style.display='none';
+  } else {
+    // Show input state
+    loggedEl.style.display='none';
+    inputEl.style.display='block';
+    document.getElementById('moodCancelBtn').style.display='none';
+  }
+}
+function allowMoodChange(){
+  // Let user update today's mood
+  document.getElementById('moodLoggedState').style.display='none';
+  document.getElementById('moodInputState').style.display='block';
+  document.getElementById('moodCancelBtn').style.display='inline-flex';
+  // Pre-select the current mood
+  const today=new Date().toLocaleDateString();
+  const existing=STATE.moods.find(m=>m.date===today);
+  if(existing){
+    document.querySelectorAll('.mood-btn').forEach(b=>b.className='mood-btn');
+    const btns=document.querySelectorAll('.mood-btn');
+    if(btns[existing.val-1]) btns[existing.val-1].classList.add('m'+existing.val);
+    STATE.currentMood=existing.val;
+    if(existing.note){
+      document.getElementById('moodNote').value=existing.note;
+      document.getElementById('moodNoteArea').classList.add('show');
+    }
+  }
+}
+function cancelMoodChange(){
+  STATE.currentMood=null;
+  document.getElementById('moodNoteArea').classList.remove('show');
+  document.getElementById('moodNote').value='';
+  document.querySelectorAll('.mood-btn').forEach(b=>b.className='mood-btn');
+  renderMoodSection();
+}
+function selectMood(val,btn){
+  document.querySelectorAll('.mood-btn').forEach(b=>b.className='mood-btn');
+  btn.classList.add('m'+val);STATE.currentMood=val;
+  document.getElementById('moodNoteArea').classList.add('show');
+}
+function saveMood(){
+  if(!STATE.currentMood){showToast('Select a mood first');return;}
+  const today=new Date().toLocaleDateString();
+  const days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const entry={val:STATE.currentMood,note:document.getElementById('moodNote').value.trim(),date:today,day:days[new Date().getDay()]};
+  // Always replace — only one entry per day
+  const idx=STATE.moods.findIndex(m=>m.date===today);
+  if(idx!==-1) STATE.moods[idx]=entry; else STATE.moods.push(entry);
+  localStorage.setItem('bloom_moods',JSON.stringify(STATE.moods));
+  renderMoodChart();updateInsights();updateStreak();
+  document.getElementById('moodNoteArea').classList.remove('show');
+  document.getElementById('moodNote').value='';
+  document.querySelectorAll('.mood-btn').forEach(b=>b.className='mood-btn');
+  STATE.currentMood=null;
+  renderMoodSection();
+  renderMilestones();
+  showToast(idx!==-1?'Mood updated for today':'Mood logged');
+}
+function renderMoodChart(){
+  const days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const today=new Date();
+  const bEl=document.getElementById('chartBars');
+  const dEl=document.getElementById('chartDays');
+  bEl.innerHTML='';dEl.innerHTML='';
+  for(let i=6;i>=0;i--){
+    const d=new Date(today);d.setDate(today.getDate()-i);
+    const entry=STATE.moods.find(m=>m.date===d.toLocaleDateString());
+    const val=entry?entry.val:0;
+    const h=val?(val/5)*72:3;
+    const isToday=i===0;
+    bEl.innerHTML+=`<div class="bar-col"><div class="bar${isToday?' today':''}" style="height:${h}px">${val?`<span class="bar-val">${val}</span>`:''}</div></div>`;
+    dEl.innerHTML+=`<div class="bar-day" style="flex:1;text-align:center">${isToday?'NOW':days[d.getDay()]}</div>`;
+  }
+}
+function updateStreak(){
+  let streak=0;const today=new Date();
+  for(let i=0;i<30;i++){
+    const d=new Date(today);d.setDate(today.getDate()-i);
+    if(STATE.moods.find(m=>m.date===d.toLocaleDateString())) streak++; else break;
+  }
+  document.getElementById('streakNum').textContent=streak;
+}
+function updateInsights(){
+  const days=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const today=new Date();const week=[];
+  for(let i=6;i>=0;i--){
+    const d=new Date(today);d.setDate(today.getDate()-i);
+    const e=STATE.moods.find(m=>m.date===d.toLocaleDateString());
+    if(e) week.push({val:e.val,day:days[d.getDay()]});
+  }
+  if(week.length){
+    document.getElementById('avgMood').textContent=(week.reduce((s,e)=>s+e.val,0)/week.length).toFixed(1)+' / 5';
+    document.getElementById('bestDay').textContent=week.reduce((a,b)=>a.val>=b.val?a:b).day;
+  }
+  document.getElementById('totalEntries').textContent=STATE.moods.length;
+  document.getElementById('gratCount').textContent=STATE.gratitude.length;
+}
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2400);
+}
+
+// ── HISTORY ──
+function setHistFilter(filter,btn){
+  STATE.histFilter=filter;
+  document.querySelectorAll('.hist-fbtn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderHistory();
+}
+
+function renderHistory(){
+  document.getElementById('hStatGrat').textContent=STATE.gratitude.length;
+  document.getElementById('hStatMood').textContent=STATE.moods.length;
+  document.getElementById('hStatRf').textContent=STATE.savedReframes.length;
+
+  const container=document.getElementById('histTimeline');
+  let events=[];
+
+  if(STATE.histFilter==='all'||STATE.histFilter==='gratitude'){
+    STATE.gratitude.forEach(g=>events.push({type:'gratitude',sortKey:g.date,data:g}));
+  }
+  if(STATE.histFilter==='all'||STATE.histFilter==='mood'){
+    STATE.moods.forEach(m=>events.push({type:'mood',sortKey:m.date,data:m}));
+  }
+  if(STATE.histFilter==='all'||STATE.histFilter==='reframe'){
+    STATE.savedReframes.forEach(r=>events.push({type:'reframe',sortKey:r.date,data:r}));
+  }
+
+  if(!events.length){
+    container.innerHTML=`<div class="hist-empty"><div class="hist-empty-icon">🌱</div><p>Nothing here yet.<br>Start logging to see your journey unfold.</p></div>`;
+    return;
+  }
+
+  // Group by date key
+  const groups={};
+  events.forEach(e=>{
+    if(!groups[e.sortKey]) groups[e.sortKey]=[];
+    groups[e.sortKey].push(e);
+  });
+
+  // Sort newest first
+  const sortedKeys=Object.keys(groups).sort((a,b)=>{
+    const da=new Date(a),db=new Date(b);
+    return (!isNaN(da)&&!isNaN(db))?(db-da):0;
+  });
+
+  let html='<div class="hist-timeline">';
+  sortedKeys.forEach(key=>{
+    html+=`<div class="hist-group"><div class="hist-group-date">${key}</div>`;
+    groups[key].forEach(ev=>{html+=buildHistItem(ev);});
+    html+='</div>';
+  });
+  html+='</div>';
+  container.innerHTML=html;
+}
+
+function buildHistItem(ev){
+  const h=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  if(ev.type==='gratitude'){
+    const g=ev.data;
+    return `<div class="hist-item">
+      <div class="hist-item-header">
+        <span class="hist-type-badge badge-grat">Gratitude</span>
+        <span class="hist-item-time">${g.items.length} thing${g.items.length!==1?'s':''}</span>
+      </div>
+      <ul class="hist-grat-items">${g.items.map(i=>`<li>${h(i)}</li>`).join('')}</ul>
+      ${g.intention?`<div class="hist-intention">✦ ${h(g.intention)}</div>`:''}
+    </div>`;
+  }
+  if(ev.type==='mood'){
+    const m=ev.data;
+    const pct=(m.val/5)*100;
+    return `<div class="hist-item">
+      <div class="hist-item-header"><span class="hist-type-badge badge-mood">Mood</span></div>
+      <div class="hist-mood-row">
+        <div class="hist-mood-emoji">${MOOD_EMOJIS[m.val]}</div>
+        <div class="hist-mood-info">
+          <h4>${MOOD_LABELS[m.val]}</h4>
+          ${m.note?`<p>${h(m.note)}</p>`:''}
+        </div>
+        <div class="hist-mood-bar-wrap">
+          <div class="hist-mood-bar"><div class="hist-mood-fill" style="width:${pct}%"></div></div>
+          <span style="font-family:'Josefin Sans',sans-serif;font-size:11px;color:var(--text-3)">${m.val}/5</span>
+        </div>
+      </div>
+    </div>`;
+  }
+  if(ev.type==='reframe'){
+    const r=ev.data;
+    return `<div class="hist-item">
+      <div class="hist-item-header"><span class="hist-type-badge badge-rf">Reframe</span></div>
+      <div class="hist-rf-thought">"${h(r.thought.substring(0,90))}${r.thought.length>90?'…':''}"</div>
+      <div class="hist-rf-reframe">${h(r.reframe)}</div>
+    </div>`;
+  }
+  return '';
+}
+
+// ── WORRY JOURNAL ──
+function addWorry(){
+  const text=document.getElementById('worryInput').value.trim();
+  if(!text){showToast('Write a worry first');return;}
+  const time=document.getElementById('worryTime').value;
+  const worries=JSON.parse(localStorage.getItem('bloom_worries')||'[]');
+  worries.unshift({text,time,date:new Date().toLocaleDateString(),id:Date.now(),contained:false});
+  localStorage.setItem('bloom_worries',JSON.stringify(worries));
+  document.getElementById('worryInput').value='';
+  document.getElementById('worryInput').style.height='auto';
+  document.getElementById('worryTime').value='';
+  renderWorries();
+  showToast('Worry parked — let it go until then');
+}
+function containWorry(id){
+  const worries=JSON.parse(localStorage.getItem('bloom_worries')||'[]');
+  const w=worries.find(w=>w.id===id);
+  if(w) w.contained=!w.contained;
+  localStorage.setItem('bloom_worries',JSON.stringify(worries));
+  renderWorries();
+}
+function deleteWorry(id){
+  let worries=JSON.parse(localStorage.getItem('bloom_worries')||'[]');
+  worries=worries.filter(w=>w.id!==id);
+  localStorage.setItem('bloom_worries',JSON.stringify(worries));
+  renderWorries();
+  showToast('Worry released');
+}
+function renderWorries(){
+  const el=document.getElementById('worryList');
+  const worries=JSON.parse(localStorage.getItem('bloom_worries')||'[]');
+  if(!worries.length){el.innerHTML='<p style="font-size:13px;color:var(--text-3);text-align:center;padding:32px 0;">No worries parked. A clear mind is a gift.</p>';return;}
+  const h=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  el.innerHTML=worries.map(w=>`
+    <div class="worry-item${w.contained?' contained':''}">
+      <div class="worry-text">${h(w.text)}</div>
+      <div class="worry-meta">
+        <span class="worry-time-badge" onclick="containWorry(${w.id})">
+          ${w.contained?'✓ Addressed':(w.time?'⏰ '+h(w.time):'Unscheduled')}
+        </span>
+        <span style="font-family:'Josefin Sans',sans-serif;font-size:10px;color:var(--text-3)">${w.date}</span>
+        <button class="worry-del" onclick="deleteWorry(${w.id})">✕</button>
+      </div>
+    </div>`).join('');
+}
+
+// ── DAILY WINS ──
+function addWin(){
+  const text=document.getElementById('winInput').value.trim();
+  if(!text){showToast('Write a win first');return;}
+  const wins=JSON.parse(localStorage.getItem('bloom_wins')||'[]');
+  wins.unshift({text,date:new Date().toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}),id:Date.now()});
+  localStorage.setItem('bloom_wins',JSON.stringify(wins));
+  document.getElementById('winInput').value='';
+  document.getElementById('winInput').style.height='auto';
+  renderWins();
+  showToast('✦ Win logged!');
+}
+function deleteWin(id){
+  let wins=JSON.parse(localStorage.getItem('bloom_wins')||'[]');
+  wins=wins.filter(w=>w.id!==id);
+  localStorage.setItem('bloom_wins',JSON.stringify(wins));
+  renderWins();
+}
+function renderWins(){
+  const el=document.getElementById('winList');
+  const wins=JSON.parse(localStorage.getItem('bloom_wins')||'[]');
+  if(!wins.length){el.innerHTML='<p style="font-size:13px;color:var(--text-3);text-align:center;padding:32px 0;">No wins yet today — every small step counts.</p>';return;}
+  const stars=['⭐','🌟','✨','💫','🌠'];
+  const h=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  el.innerHTML=wins.map((w,i)=>`
+    <div class="win-item">
+      <div class="win-star">${stars[i%stars.length]}</div>
+      <div class="win-content">
+        <div class="win-text">${h(w.text)}</div>
+        <div class="win-date">${w.date}</div>
+      </div>
+      <button class="win-del" onclick="deleteWin(${w.id})">✕</button>
+    </div>`).join('');
+}
+
+// ── MILESTONES ──
+const MILESTONES=[
+  {icon:'🌱',name:'First step',req:'1 gratitude entry',check:s=>s.gratitude.length>=1},
+  {icon:'🔥',name:'3-day streak',req:'3 days in a row',check:s=>calcStreak(s.moods)>=3},
+  {icon:'📔',name:'Journaller',req:'10 gratitude entries',check:s=>s.gratitude.length>=10},
+  {icon:'🌿',name:'Week of calm',req:'7-day streak',check:s=>calcStreak(s.moods)>=7},
+  {icon:'💭',name:'Thought worker',req:'5 reframes saved',check:s=>s.savedReframes.length>=5},
+  {icon:'🏆',name:'Month strong',req:'30 gratitude entries',check:s=>s.gratitude.length>=30},
+  {icon:'😊',name:'Mood tracker',req:'14 mood check-ins',check:s=>s.moods.length>=14},
+  {icon:'🦋',name:'Transformation',req:'30-day streak',check:s=>calcStreak(s.moods)>=30},
+  {icon:'🌟',name:'Dedicated',req:'50 gratitude entries',check:s=>s.gratitude.length>=50},
+];
+function calcStreak(moods){
+  let streak=0;const today=new Date();
+  for(let i=0;i<60;i++){
+    const d=new Date(today);d.setDate(today.getDate()-i);
+    if(moods.find(m=>m.date===d.toLocaleDateString())) streak++; else break;
+  }
+  return streak;
+}
+function renderMilestones(){
+  const el=document.getElementById('milestonesGrid');
+  if(!el) return;
+  el.innerHTML=MILESTONES.map(m=>{
+    const earned=m.check(STATE);
+    return `<div class="milestone${earned?' earned':''}">
+      <div class="milestone-icon">${m.icon}</div>
+      <div class="milestone-name">${m.name}</div>
+      <div class="milestone-req">${earned?'✓ Earned':m.req}</div>
+    </div>`;
+  }).join('');
+  // Toast for newly earned milestones
+  const newlyEarned=MILESTONES.filter(m=>m.check(STATE));
+  const prev=JSON.parse(localStorage.getItem('bloom_earned_milestones')||'[]');
+  newlyEarned.forEach(m=>{
+    if(!prev.includes(m.name)){
+      setTimeout(()=>showToast('🏆 Milestone unlocked: '+m.name),400);
+    }
+  });
+  localStorage.setItem('bloom_earned_milestones',JSON.stringify(newlyEarned.map(m=>m.name)));
+}
+
+// ── MOOD CALENDAR ──
+function renderMoodCalendar(){
+  const el=document.getElementById('moodCalGrid');
+  if(!el) return;
+  const today=new Date();
+  // Start from 28 days ago, aligned to Sunday
+  const start=new Date(today);
+  start.setDate(today.getDate()-27);
+  // Pad to Sunday
+  const dayOffset=start.getDay();
+  start.setDate(start.getDate()-dayOffset);
+  let html='';
+  const todayStr=today.toLocaleDateString();
+  for(let i=0;i<35;i++){
+    const d=new Date(start);d.setDate(start.getDate()+i);
+    const dateStr=d.toLocaleDateString();
+    const dayNum=d.getDate();
+    const entry=STATE.moods.find(m=>m.date===dateStr);
+    const isFuture=d>today;
+    const isOld=d<new Date(today.getFullYear(),today.getMonth(),today.getDate()-27);
+    if(isFuture||isOld){
+      html+=`<div class="mood-cal-day" style="opacity:0.2"></div>`;
+    } else {
+      const moodClass=entry?`has-mood mood-${entry.val}`:'';
+      const todayClass=dateStr===todayStr?' today':'';
+      html+=`<div class="mood-cal-day ${moodClass}${todayClass}" title="${dateStr}${entry?' — '+MOOD_LABELS[entry.val]:''}">
+        ${entry?MOOD_EMOJIS[entry.val]:dayNum}
+      </div>`;
+    }
+  }
+  el.innerHTML=html;
+}
+
+// ── NOTIFICATIONS ──
+function requestNotifPermission(){
+  if(!('Notification' in window)){showToast('Notifications not supported in this browser');return;}
+  Notification.requestPermission().then(perm=>{
+    if(perm==='granted'){
+      document.getElementById('notifBanner').style.display='none';
+      localStorage.setItem('bloom_notif','granted');
+      showToast('Reminders enabled!');
+      scheduleReminder();
+    } else {
+      showToast('Permission denied — enable in browser settings');
+    }
+  });
+}
+function saveReminderTime(){
+  const t=document.getElementById('reminderTime').value;
+  localStorage.setItem('bloom_reminder_time',t);
+  showToast('Reminder set for '+t);
+  scheduleReminder();
+}
+function scheduleReminder(){
+  const perm=localStorage.getItem('bloom_notif');
+  const time=localStorage.getItem('bloom_reminder_time')||'08:00';
+  if(perm!=='granted') return;
+  const [h,m]=time.split(':').map(Number);
+  const now=new Date();
+  const next=new Date();
+  next.setHours(h,m,0,0);
+  if(next<=now) next.setDate(next.getDate()+1);
+  const ms=next-now;
+  clearTimeout(window._reminderTimeout);
+  window._reminderTimeout=setTimeout(()=>{
+    new Notification('🌿 Bloom reminder',{body:'Time for your daily check-in. How are you feeling today?',icon:''});
+    scheduleReminder(); // reschedule for next day
+  },ms);
+}
+
+// ── AI WEEKLY REFLECTION ──
+async function generateWeeklyReflection(){
+  const btn=document.getElementById('generateReflectionBtn');
+  const textEl=document.getElementById('weeklyReflectionText');
+  btn.disabled=true;
+  textEl.classList.add('loading');
+  textEl.textContent='Reflecting on your week…';
+
+  // Gather last 7 days of data
+  const today=new Date();
+  const recentGrat=STATE.gratitude.slice(0,7);
+  const recentMoods=[];
+  for(let i=6;i>=0;i--){
+    const d=new Date(today);d.setDate(today.getDate()-i);
+    const e=STATE.moods.find(m=>m.date===d.toLocaleDateString());
+    if(e) recentMoods.push({day:['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()],val:e.val,label:MOOD_LABELS[e.val]});
+  }
+  const recentReframes=STATE.savedReframes.slice(0,3);
+  const recentWins=JSON.parse(localStorage.getItem('bloom_wins')||'[]').slice(0,5);
+
+  const summary={
+    gratitudeItems:recentGrat.flatMap(g=>g.items).slice(0,12),
+    moods:recentMoods,
+    reframes:recentReframes.map(r=>r.reframe),
+    wins:recentWins.map(w=>w.text)
+  };
+
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',max_tokens:1000,
+        system:`You are a warm, thoughtful mental wellness companion. You are writing a personalised weekly reflection for someone working on gratitude, positivity, and managing anxiety. 
+Write 3-4 sentences in a warm, human, non-clinical tone. Notice genuine patterns, celebrate their efforts, and offer one gentle observation or encouragement for the week ahead. 
+Do not be generic. Reference the actual data provided. Never start with "I".`,
+        messages:[{role:'user',content:`Here is my week's data:
+Gratitude entries: ${JSON.stringify(summary.gratitudeItems)}
+Mood check-ins: ${JSON.stringify(summary.moods)}
+Saved reframes: ${JSON.stringify(summary.reframes)}
+Daily wins: ${JSON.stringify(summary.wins)}
+
+Please write my personalised weekly reflection.`}]
+      })
+    });
+    const data=await res.json();
+    textEl.textContent=data.content?.[0]?.text||'You showed up this week. That matters more than you know.';
+  }catch(e){
+    textEl.textContent='You showed up this week — you logged your feelings, challenged your thoughts, and chose to keep going. That quiet consistency is where real change lives.';
+  }
+  textEl.classList.remove('loading');
+  btn.disabled=false;
+  btn.textContent='Regenerate';
+}
+
+// ── AI MOOD PATTERNS ──
+async function generateMoodPatterns(){
+  if(STATE.moods.length<5){showToast('Log at least 5 mood check-ins first');return;}
+  const btn=document.getElementById('generatePatternsBtn');
+  const textEl=document.getElementById('moodPatternText');
+  btn.disabled=true;
+  textEl.classList.add('loading');
+  textEl.textContent='Analysing your mood patterns…';
+
+  const moodData=STATE.moods.slice(-30).map(m=>({day:m.day,val:m.val,label:m.label||MOOD_LABELS[m.val],note:m.note||'',date:m.date}));
+
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        model:'claude-sonnet-4-20250514',max_tokens:1000,
+        system:`You are a warm, thoughtful mental wellness companion analysing mood patterns for someone working on positivity and anxiety. 
+Look for genuine patterns: days of the week with higher/lower moods, trends over time, connections between notes and mood. 
+Write 3-5 sentences. Be specific, warm, and constructive. Never be alarming. Celebrate improvements. Do not start with "I".`,
+        messages:[{role:'user',content:`My mood check-in data (last 30 days): ${JSON.stringify(moodData)}
+
+Please identify patterns and give me a personalised insight.`}]
+      })
+    });
+    const data=await res.json();
+    textEl.textContent=data.content?.[0]?.text||'Your mood data shows a genuine pattern of self-awareness. Keep checking in.';
+  }catch(e){
+    textEl.textContent='Your mood data shows real patterns of self-awareness. Keep logging consistently to unlock deeper insights over time.';
+  }
+  textEl.classList.remove('loading');
+  btn.disabled=false;
+  btn.textContent='Re-analyse';
+}
+
+// ── RESET ──
+function showResetConfirm(){
+  document.getElementById('resetModal').classList.add('show');
+}
+function hideResetConfirm(e){
+  if(e && e.target!==document.getElementById('resetModal')) return;
+  document.getElementById('resetModal').classList.remove('show');
+}
+function resetAllData(){
+  // Clear all localStorage keys belonging to Bloom
+  const keys=[
+    'bloom_gratitude','bloom_moods','bloom_favs','bloom_reframes',
+    'bloom_worries','bloom_wins','bloom_daily_quote',
+    'bloom_earned_milestones','bloom_notif','bloom_reminder_time'
+  ];
+  keys.forEach(k=>localStorage.removeItem(k));
+
+  // Reset STATE
+  STATE.gratitude=[];
+  STATE.moods=[];
+  STATE.favAffirmations=[];
+  STATE.savedReframes=[];
+  STATE.currentMood=null;
+  STATE.currentAffirmIdx=0;
+  STATE.currentCategory='all';
+  STATE.selectedQ=null;
+  STATE.histFilter='all';
+
+  // Re-render everything
+  renderGratitudeEntries();
+  clearGratitude();
+  renderMoodChart();
+  updateInsights();
+  renderSavedReframes();
+  renderFavAffirmations();
+  updateStreak();
+  renderMoodSection();
+  renderWorries();
+  renderWins();
+
+  // Reset insight panels
+  const rt=document.getElementById('weeklyReflectionText');
+  if(rt) rt.textContent='Your personalised weekly reflection will appear here once you start logging.';
+  const pt=document.getElementById('moodPatternText');
+  if(pt) pt.textContent='Your mood pattern analysis will appear here once you have at least 5 check-ins logged.';
+  const rb=document.getElementById('generateReflectionBtn');
+  if(rb){rb.disabled=false;rb.textContent='Generate this week\'s reflection';}
+  const pb=document.getElementById('generatePatternsBtn');
+  if(pb){pb.disabled=false;pb.textContent='Analyse my patterns';}
+
+  // Reload daily quote fresh
+  loadDailyQuote();
+
+  // Close modal and navigate home
+  document.getElementById('resetModal').classList.remove('show');
+  showSection('gratitude', document.querySelector('.nav-tab'));
+
+  showToast('App reset — fresh start 🌱');
+}
+
+function toggleTheme(){
+  const html=document.documentElement;
+  const isLight=html.getAttribute('data-theme')==='light';
+  const next=isLight?'dark':'light';
+  html.setAttribute('data-theme',next);
+  localStorage.setItem('bloom_theme',next);
+  document.getElementById('themeIcon').textContent=next==='light'?'☾':'☀';
+}
+(function initTheme(){
+  const saved=localStorage.getItem('bloom_theme')||'dark';
+  document.documentElement.setAttribute('data-theme',saved);
+  document.addEventListener('DOMContentLoaded',()=>{
+    document.getElementById('themeIcon').textContent=saved==='light'?'☾':'☀';
+  });
+})();
+</script>
+</body>
+</html>
